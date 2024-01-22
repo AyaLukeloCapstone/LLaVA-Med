@@ -1,3 +1,4 @@
+LICENSE
 README.md
 pyproject.toml
 llava/__init__.py
