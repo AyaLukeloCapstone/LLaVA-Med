@@ -1,14 +1,19 @@
 import openai
 import time
 import asyncio
+import os
 
-# Fill in your OpenAI setup params here
-openai.api_type = "azure"
-openai.api_key = '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'
-openai.api_base = 'https://example-endpoint.openai.azure.com/'
-openai.api_version = "2023-03-15-preview"
+#added this line for making sure we do not push the keys to github
+from dotenv import load_dotenv
+# Load environment variables from .env file
+load_dotenv('/scratch/ltl2113/LLaVA-Med/.env')
 
-DEPLOYMENT_ID="deployment-name"
+# Use environment variables#so make sure you have a file .env in directory
+openai.api_type = os.getenv("OPENAI_API_TYPE", "azure")
+openai.api_key = os.getenv("OPENAI_API_KEY")
+openai.api_base = os.getenv("OPENAI_API_BASE", 'https://example-endpoint.openai.azure.com/')
+openai.api_version = os.getenv("OPENAI_API_VERSION", "2023-03-15-preview")
+DEPLOYMENT_ID = os.getenv("DEPLOYMENT_ID", "deployment-name")
 
 
 async def dispatch_openai_requests(

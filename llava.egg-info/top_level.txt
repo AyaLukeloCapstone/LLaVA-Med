@@ -1,3 +1,5 @@
+checkpoints
 data
 images
 llava
+model

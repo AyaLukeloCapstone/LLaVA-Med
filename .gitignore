@@ -3,3 +3,7 @@ data/
 model/
 *.out
 *.log
+.env
+checkpoints/llava-med-7b-pretrain/
+*.err
+*.pyc
