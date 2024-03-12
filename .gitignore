@@ -1,5 +1,12 @@
 # Ignore all files in the data directory
 data/
 model/
+wandb/
+checkpoints/
 *.out
 *.log
+.env
+checkpoints/llava-med-7b-pretrain/
+*.err
+*.pyc
+answers/

@@ -1,35 +1,45 @@
 #!/bin/bash
 
-mkdir data/alignment
-cd data/alignment
+#SBATCH --cpus-per-task=2
+#SBATCH -p compute
+#SBATCH --mem=40GB
+#SBATCH --time=168:00:00
 
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/alignment/llava_med_alignment_500k.json
+eval "$(conda shell.bash hook)"
+conda activate llava-med
 
-cd ..
+#mkdir data/alignment
+#cd data/alignment
 
-mkdir instruct
-cd instruct
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/alignment/llava_med_alignment_500k.json
 
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_10k.json
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_60k.json
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_60k_inline_mention.json
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_fig_captions.json
-cd ..
+#cd ..
 
-mkdir eval
-cd eval
+#mkdir instruct
+#cd instruct
 
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_eval_qa50_qa.jsonl
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_eval_qa50_fig_captions.json
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_qa50_instruct_caption_in_text_cleaned-60k-3epoch.json
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_10k.json
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_60k.json
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_60k_inline_mention.json
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/instruct/llava_med_instruct_fig_captions.json
+#cd ..
 
-cd ..
+#mkdir eval
+#cd eval
 
-wget https://hanoverprod.z21.web.core.windows.net/med_llava/llava_med_image_urls.jsonl
-mkdir pmc_articles
-mkdir images
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_eval_qa50_qa.jsonl
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_eval_qa50_fig_captions.json
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/eval/llava_med_qa50_instruct_caption_in_text_cleaned-60k-3epoch.json
 
-cd ..
+#cd ..
 
-pip install tqdm
+#wget https://hanoverprod.z21.web.core.windows.net/med_llava/llava_med_image_urls.jsonl
+#mkdir pmc_articles
+#mkdir images
+
+#cd ..
+
+#pip install tqdm
 python llava/data/download_images.py --input_path data/llava_med_image_urls.jsonl --pmc_output_path data/pmc_articles/ --images_output_path data/images
+
+

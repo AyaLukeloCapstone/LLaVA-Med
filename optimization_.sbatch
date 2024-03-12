@@ -3,8 +3,8 @@
 #SBATCH -p nvidia
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=1
-#SBATCH --gres=gpu:a100:1
+#SBATCH --cpus-per-task=2
+#SBATCH --gres=gpu:a100:2
 #SBATCH --time=2:59:59
 #SBATCH --mem=150GB
 #SBATCH -o job.%J.out
@@ -23,7 +23,7 @@ export TRANSFORMERS_CACHE="/scratch/ae2195/huggingface_cache"
 
 #python create_filtered_json.py
 
-torchrun --nnodes=1 --nproc_per_node=1 --master_port=25001 \
+torchrun --nnodes=1 --nproc_per_node=2 --master_port=25001 \
     llava/train/train_mem.py \
     --model_name_or_path /scratch/ae2195/LLaVA-Med/model \
     --data_path /scratch/ae2195/LLaVA-Med/data/alignment/filtered_json_file.json \
