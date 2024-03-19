@@ -24,7 +24,8 @@ from typing import Dict, Optional, Sequence
 
 import torch
 
-import transformers
+import transformers 
+from transformers import AutoProcessor, LlavaForConditionalGeneration
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer 
 
@@ -497,15 +498,13 @@ def train():
     if student_model_args.vision_tower is not None:
         student_model = LlavaLlamaForCausalLM.from_pretrained(
             student_model_args.model_name_or_path,
-            cache_dir=student_training_args.cache_dir,
-            device_map="auto"
+            cache_dir=student_training_args.cache_dir
         )
         # pip install accelerate
     else:
         student_model = transformers.LlamaForCausalLM.from_pretrained(
             student_model_args.model_name_or_path,
-            cache_dir=student_training_args.cache_dir,
-            device_map="auto"
+            cache_dir=student_training_args.cache_dir
         )
 
     student_device = student_model.device
@@ -522,6 +521,7 @@ def train():
         padding_side="right",
         use_fast=False,
     )
+
 
 
     if student_model_args.version == "v0":
@@ -553,7 +553,7 @@ def train():
             dtype = torch.float16
         if student_training_args.bf16:
             dtype = torch.bfloat16
-        student_model.model.vision_tower[0].to(dtype=dtype, device=student_device)
+        # student_model.model.vision_tower[0].to(dtype=dtype, device=student_device)
         vision_config = model_vision_dict['vision_config']
 
 
@@ -631,14 +631,12 @@ def train():
     if teacher_model_args.vision_tower is not None:
         teacher_model = LlavaLlamaForCausalLM.from_pretrained(
             teacher_model_args.model_name_or_path,
-            cache_dir=teacher_training_args.cache_dir,
-            device_map="auto"
+            cache_dir=teacher_training_args.cache_dir
         )
     else:
         teacher_model = transformers.LlamaForCausalLM.from_pretrained(
             teacher_model_args.model_name_or_path,
-            cache_dir=teacher_training_args.cache_dir,
-            device_map="auto"
+            cache_dir=teacher_training_args.cache_dir
         )
     teacher_model.config.use_cache = False
 
@@ -689,7 +687,7 @@ def train():
         # teacher device
         teacher_device = teacher_model.device
      
-        teacher_model.model.vision_tower[0].to(dtype=dtype, device=teacher_device)
+        # teacher_model.model.vision_tower[0].to(dtype=dtype, device=teacher_device)
         vision_config = model_vision_dict['vision_config']
 
 
@@ -729,8 +727,6 @@ def train():
                         use_orig_params = kwargs.pop('use_orig_params', True)
                         return func(*args, **kwargs, use_orig_params=use_orig_params)
                     return wrap_func
-
-
                 FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
 
 

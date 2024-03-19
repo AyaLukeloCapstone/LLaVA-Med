@@ -587,9 +587,6 @@ def train():
 
     # end of initialisation for teacher 
 
-
-
-
    # ORIGINAL LLaVATrainer -> teacher 
     trainer = LLaVATrainer(model=model,
                     tokenizer=tokenizer,

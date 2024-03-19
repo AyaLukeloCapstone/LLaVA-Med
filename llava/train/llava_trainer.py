@@ -131,15 +131,40 @@ class LLaVATrainer(Trainer):
 
         # Tuesday Mars 12th
     def compute_loss(self, student_model, inputs, return_outputs=False):
-        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # device = torch.device('cpu')
         # print("Device initialized:", device) 
-     
-        inputs_student = {key: value.to(student_model.device) for key, value in inputs.items()}  # Move tensors to device item by item to free from dict error 
-        outputs_student = student_model(**inputs_student)
 
-        inputs_teacher = {key: value.to(self.teacher_model.device) for key, value in inputs.items()}  # Move tensors to device item by item to free from dict error 
+        # dtype = torch.float32
+        # student_model.model.vision_tower[0].to(dtype=dtype, device=student_model.device)
 
-        # print("post outputs_student :", device) 
+        # Print out the device attributes to ensure they are set correctly
+        # print("Student model device:", student_model.device)
+        # print("Teacher model device:", self.teacher_model.device)
+
+        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        
+        # inputs = inputs.to(device)
+        # student_model = student_model.to(device)
+        # self.teacher_model = self.teacher_model.to(device)
+        # inputs = inputs.to(device)
+        
+        # student_inputs = {key: value.to(student_model.device) for key, value in inputs.items()}  # Move tensors to device item by item to free from dict error 
+        # # outputs_student = student_model(**student_inputs)
+
+
+        # # Cast input tensors to the appropriate data type
+        # student_inputs = {key: value.to(torch.float16) for key, value in student_inputs.items()}
+
+        # device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        # inputs = inputs.to(device)
+        # Call the student model with the updated input tensors
+        outputs_student = student_model(**inputs)
+
+        # inputs_teacher = {key: value.to(self.teacher_model.device) for key, value in inputs.items()}  # Move tensors to device item by item to free from dict error 
+
+        print("post outputs_student :", device) 
+
         # get cross entropy loss and logits from student
         loss_cross_entropy = outputs_student.loss
         logits_student = outputs_student.logits
@@ -149,9 +174,7 @@ class LLaVATrainer(Trainer):
             outputs_teacher = self.teacher_model(**inputs_teacher)
             logits_teacher = outputs_teacher.logits
 
-
         # print("exiting the loop printing to check device  :", device) 
-
 
         # compute kl divergence loss
         loss_kd = self.args.temperature ** 2 * nn.KLDivLoss(reduction='batchmean')(
@@ -160,9 +183,7 @@ class LLaVATrainer(Trainer):
         )
         # compute final student loss
         loss = self.args.alpha * loss_cross_entropy + (1. - self.args.alpha) * loss_kd
-        return (loss, outputs_student) if return_outputs else loss
-
-
+        return (loss, outputs_student) if return_outputs else loss 
 
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
