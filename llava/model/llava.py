@@ -167,6 +167,11 @@ class LlavaLlamaModel(LlamaModel):
             image_features = image_features
             dummy_image_features = torch.zeros(196, 768, device=image_features.device, dtype=image_features.dtype)
         else:
+            #COMMENTED CODE FOR DEBUGGING PURPOSES
+            # print("image device: ",images.device)
+            # print("vision tower device: ",next(vision_tower.parameters()).device)
+            # print("Vision tower: ",vision_tower)
+            # vision_tower=vision_tower.to(images.device)
             image_forward_outs = vision_tower(images, output_hidden_states=True)
             select_hidden_state = image_forward_outs.hidden_states[select_hidden_state_layer]
             image_features = select_hidden_state[:, 1:]
