@@ -84,7 +84,7 @@ class LlavaLlamaModel(LlamaModel):
         else:
             vision_tower = self.vision_tower[0]
         vision_tower.requires_grad_(False)
-        vision_tower = vision_tower.to(torch.float16)
+        vision_tower = vision_tower.to(torch.float32)
         self.vision_tower = [vision_tower]
 
         vision_config = vision_tower.config
@@ -93,12 +93,12 @@ class LlavaLlamaModel(LlamaModel):
         self.config.use_mm_proj = True
         self.config.mm_hidden_size = vision_config.hidden_size
         self.config.mm_vision_select_layer = mm_vision_select_layer
-
+        
         if not hasattr(self, 'mm_projector'):
             self.mm_projector = nn.Linear(vision_config.hidden_size, self.config.hidden_size)
 
         if pretrain_mm_mlp_adapter is not None:
-            mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cpu')
+            mm_projector_weights = torch.load(pretrain_mm_mlp_adapter, map_location='cuda')
             self.mm_projector.load_state_dict({k.split('.')[-1]: v for k, v in mm_projector_weights.items()})
 
         return dict(
@@ -167,11 +167,16 @@ class LlavaLlamaModel(LlamaModel):
             image_features = image_features
             dummy_image_features = torch.zeros(196, 768, device=image_features.device, dtype=image_features.dtype)
         else:
+            #move the images to device same as vision tower(in this case CPU)
+            #otherwise images will be in GPU and vision tower in CPU: causing crashing
+            #for some reason we cannot move vision tower to GPU(so it will always stay in CPU)
+            images = images.to(dtype=next(vision_tower.parameters()).dtype, device=next(vision_tower.parameters()).device)
             #COMMENTED CODE FOR DEBUGGING PURPOSES
             # print("image device: ",images.device)
+            # print("image data type: ",images.dtype)
             # print("vision tower device: ",next(vision_tower.parameters()).device)
+            # print("vision data type: ",next(vision_tower.parameters()).dtype)
             # print("Vision tower: ",vision_tower)
-            # vision_tower=vision_tower.to(images.device)
             image_forward_outs = vision_tower(images, output_hidden_states=True)
             select_hidden_state = image_forward_outs.hidden_states[select_hidden_state_layer]
             image_features = select_hidden_state[:, 1:]
@@ -219,6 +224,9 @@ class LlavaLlamaModel(LlamaModel):
             if type(images) is list:
                 image_features = [self.mm_projector(image_feature)[0] for image_feature in image_features]
             else:
+                #moves the mm_projector to be in same device as the image features
+                #else it will crash since mm_projector is in cpu and image features is in GPU
+                self.mm_projector=self.mm_projector.to(image_features.device)
                 image_features = self.mm_projector(image_features)
             
             

@@ -121,6 +121,11 @@ def eval_model(args):
         prompt = conv.get_prompt()
         inputs = tokenizer([prompt])
 
+        imagepath=os.path.join(args.image_folder, image_file)
+        if not os.path.exists(imagepath):
+            print(f"Image path does not exist: {imagepath}")
+            continue  # Skip to the next iteration of the loop
+
         image = Image.open(os.path.join(args.image_folder, image_file))
         # image.save(os.path.join(save_image_folder, image_file))
         image_tensor = image_processor.preprocess(image, return_tensors='pt')['pixel_values'][0]

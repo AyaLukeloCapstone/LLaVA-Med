@@ -49,6 +49,7 @@ class LLaVATrainer(Trainer):
         #PRINTING FOR DEBUGGING PURPOSES
         print("inputs: ",inputs)
         print("student model device: ",student_model.device)
+ 
         print("teacher model device: ",self.teacher_model.device)
 
         #student_inputs: moving the inputs to same device as student model
@@ -60,10 +61,11 @@ class LLaVATrainer(Trainer):
         # get cross entropy loss and logits from student
         loss_cross_entropy = outputs_student.loss
         logits_student = outputs_student.logits
-
+        print("Done getting the student output")
+        
         with torch.no_grad():
             #teacher_inputs: moving the inputs to same device as teacher model
-            teacher_inputs = {key: value.to(self.teacher_model.device) for key, value in inputs.items()}
+            # teacher_inputs = {key: value.to(self.teacher_model.device) for key, value in inputs.items()}
             outputs_teacher = self.teacher_model(**student_inputs)
             logits_teacher = outputs_teacher.logits
 

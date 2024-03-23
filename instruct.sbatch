@@ -30,3 +30,6 @@ python llava/instruct/instruct_postprocess.py \
     --input_path data/instruct/llava_med_instruct_60k_inline_mentions_gen.json \
     --output_path data/instruct/llava_med_instruct_60k_inline_mentions_post.json
 
+
+
+python llava/instruct/instruct_generate.py --input_path data/instruct/llava_med_instruct_fig_captions.json --output_path data/instruct/llava_med_instruct_60k_inline_mentions_gen.json --max_size 60000 --use_inline_mentions True
