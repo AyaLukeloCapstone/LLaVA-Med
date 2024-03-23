@@ -14,3 +14,7 @@ llava/train/train_og.py
 .ipynb_checkpoints
 tiny-llava-v1-hf
 model-base
+TinyLLaVABench/checkpoints
+TinyLLaVABench/*.log
+TinyLLaVABench/*.out
+TinyLLaVABench/*.err
