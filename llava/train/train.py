@@ -25,6 +25,7 @@ from typing import Dict, Optional, Sequence
 import torch
 
 import transformers
+import tokenizers
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -489,7 +490,7 @@ def train():
    if student_model_args.vision_tower is not None:
        student_model = LlavaLlamaForCausalLM.from_pretrained(
            student_model_args.model_name_or_path,
-           cache_dir=student_training_args.cache_dir
+           cache_dir=student_training_args.cache_dir,
        )
 
    else:
@@ -513,6 +514,15 @@ def train():
        padding_side="right",
        use_fast=False,
    )
+#    Tokenizer, init_tokenizer = TokenizerSelect(model_args.model_name_or_path)()
+#    tokenizer = Tokenizer.from_pretrained(
+#         student_model_args.model_name_or_path,
+#         cache_dir=student_training_args.cache_dir,
+#         model_max_length=student_training_args.model_max_length,
+#         padding_side="right",
+#         use_fast=False,
+#     )
+#    student_tokenizer = init_tokenizer(tokenizer)
 
    if student_model_args.version == "v0":
        if student_tokenizer.pad_token is None:
@@ -559,9 +569,6 @@ def train():
            student_model.requires_grad_(False)
            for p in student_model.model.mm_projector.parameters():
                p.requires_grad = True
-
-
-
 
        student_model.config.freeze_mm_mlp_adapter = student_training_args.freeze_mm_mlp_adapter
        if student_training_args.freeze_mm_mlp_adapter:
@@ -630,15 +637,15 @@ def train():
        teacher_model = LlavaLlamaForCausalLM.from_pretrained(
            teacher_model_args.model_name_or_path,
            cache_dir=teacher_training_args.cache_dir,
-           
+           device_map='auto'
            
        )
    else:
        teacher_model = transformers.LlamaForCausalLM.from_pretrained(
            teacher_model_args.model_name_or_path,
            cache_dir=teacher_training_args.cache_dir,
-           
-           
+           device_map='auto'
+                  
        )
    teacher_model.config.use_cache = False
 
@@ -714,24 +721,24 @@ def train():
        teacher_model.initialize_vision_tokenizer(mm_use_im_start_end=teacher_model_args.mm_use_im_start_end, tokenizer=student_tokenizer, device=teacher_device,
                                          tune_mm_mlp_adapter=teacher_model_args.tune_mm_mlp_adapter, pretrain_mm_mlp_adapter=teacher_model_args.pretrain_mm_mlp_adapter)
 
-       params_no_grad = [n for n, p in teacher_model.named_parameters() if not p.requires_grad]
-       if len(params_no_grad) > 0:
-           if teacher_training_args.fsdp is not None and len(teacher_training_args.fsdp) > 0:
-               if len(params_no_grad) < 10:
-                   print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}'. format(len(params_no_grad), params_no_grad))
-               else:
-                   print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}...(omitted)'. format(len(params_no_grad), ', '.join(params_no_grad[:10])))
-               print("[WARNING] Attempting to use FSDP with partially frozen paramters, this is experimental.")
-               print("[WARNING] As of 4/30/23, this feature requires PyTorch-nightly build.  See here for details: https://github.com/haotian-liu/LLaVA#experimental-use-fsdp-to-save-memory-in-pretraining")
+#        params_no_grad = [n for n, p in teacher_model.named_parameters() if not p.requires_grad]
+#        if len(params_no_grad) > 0:
+#            if teacher_training_args.fsdp is not None and len(teacher_training_args.fsdp) > 0:
+#                if len(params_no_grad) < 10:
+#                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}'. format(len(params_no_grad), params_no_grad))
+#                else:
+#                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}...(omitted)'. format(len(params_no_grad), ', '.join(params_no_grad[:10])))
+#                print("[WARNING] Attempting to use FSDP with partially frozen paramters, this is experimental.")
+#                print("[WARNING] As of 4/30/23, this feature requires PyTorch-nightly build.  See here for details: https://github.com/haotian-liu/LLaVA#experimental-use-fsdp-to-save-memory-in-pretraining")
 
-               from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
-               def patch_FSDP_use_orig_params(func):
-                   def wrap_func(*args, **kwargs):
-                       use_orig_params = kwargs.pop('use_orig_params', True)
-                       return func(*args, **kwargs, use_orig_params=use_orig_params)
-                   return wrap_func
+#                from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
+#                def patch_FSDP_use_orig_params(func):
+#                    def wrap_func(*args, **kwargs):
+#                        use_orig_params = kwargs.pop('use_orig_params', True)
+#                        return func(*args, **kwargs, use_orig_params=use_orig_params)
+#                    return wrap_func
 
-               FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
+#                FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
 
 
    data_module = make_supervised_data_module(tokenizer=student_tokenizer,

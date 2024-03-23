@@ -1,15 +1,17 @@
 #!/bin/bash 
 
+#SBATCH -q ebrainccs 
 #SBATCH -p nvidia
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a100:2  # Request only one GPU as we are running in single-process mode
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:a100:4  # Request only one GPU as we are running in single-process mode
 #SBATCH --time=5:59:59
 #SBATCH --mem=150GB
 #SBATCH -C 80g
 #SBATCH -o job.%J.out
 #SBATCH -e job.%J.err
+
 
 #SBATCH --job-name=training
 
@@ -25,10 +27,12 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # Set environment variables
 export HF_HOME="/scratch/ltl2113/huggingface_cache"
 
-torchrun --nnodes=1 --nproc_per_node=2 --master_port=25001 \
+
+
+torchrun --nnodes=1 --nproc_per_node=3 --master_port=25001 \
     llava/train/train_mem.py \
-    --model_name_or_path /scratch/ltl2113/LLaVA-Med/checkpoints/llava-med-7b-pretrain \
-    --data_path /scratch/ltl2113/LLaVA-Med/data/instruct/llava_med_instruct_60k_inline_mention.json \
+    --model_name_or_path /scratch/ltl2113/LLaVA-Med/model \
+    --data_path /scratch/ltl2113/LLaVA-Med/data/alignment/filtered_json_file.json \
     --image_folder /scratch/ltl2113/LLaVA-Med/data/Allimages \
     --vision_tower openai/clip-vit-large-patch14 \
     --mm_vision_select_layer -2 \
@@ -48,7 +52,7 @@ torchrun --nnodes=1 --nproc_per_node=2 --master_port=25001 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
     --logging_steps 1 \
-    --tf32 True \
+    --tf32 False \
     --model_max_length 2048 \
     --gradient_checkpointing True \
     --lazy_preprocess True \

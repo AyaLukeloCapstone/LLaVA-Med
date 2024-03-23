@@ -49,5 +49,5 @@ export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 # cd ..
 
 # Install Python packages and run Python scripts
-# pip install tqdm
-python -u llava/data/download_images.py --input_path data/llava_med_image_urls.jsonl --pmc_output_path data/pmc_articles/ --images_output_path data/images
+pip install tqdm
+python llava/data/download_images.py --input_path data/llava_med_image_urls.jsonl --pmc_output_path data/pmc_articles/ --images_output_path data/Allimages

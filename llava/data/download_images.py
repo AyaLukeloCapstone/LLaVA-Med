@@ -134,14 +134,20 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--input_path', type=str, default='data/llava_med_image_urls.jsonl')
 parser.add_argument('--pmc_output_path', type=str, default='data/pmc_articles/')
 parser.add_argument('--images_output_path', type=str, default='data/images/')
-parser.add_argument('--remove_pmc', action='store_true', default=False, help='remove pmc articles after image extraction')
+parser.add_argument('--remove_pmc', action='store_true', default=True, help='remove pmc articles after image extraction')
 parser.add_argument('--cpus', type=int, default=-1, help='number of cpus to use in multiprocessing (default: all)')
 args = parser.parse_args()
 
 input_data = []
 with open(args.input_path) as f:
-    for line in f:
-        input_data.append(json.loads(line))
+    for line_number, line in enumerate(f, 1):
+        try:
+            if line.strip():  # Checks if the line is not empty
+                input_data.append(json.loads(line))
+            else:
+                print(f"Skipping empty line at {line_number}")
+        except json.JSONDecodeError as e:
+            print(f"Error decoding JSON on line {line_number}: {e}")
 
 def download_func(idx):
     sample = input_data[idx]

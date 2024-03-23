@@ -86,12 +86,21 @@ def main(args):
 
   # Merge question and answer input data
   samples = []
+  index=0
+  print("Starting evaluation of GPT-4 and LLAVAMED responses")
   for question, answer in zip(question_data, answer_data):
     sample = deepcopy(question)
     question['question'] = sample['text'][:-8]
     question['ans1'] = sample.pop('gpt4_answer')
     question['ans2'] = answer['text']
+    print("question: ",question)
     samples.append(question)
+    print("Iterations number: ",index)
+    
+    if index<20:
+      prompt = LLMEvalPromptGenerator.compare_messages_gen(question)
+      print(f"Prompt {index+1}:\n{prompt['content']}\n")
+    index+=1
   
   samples_question_ids = set(x['question_id'] for x in samples)
 
