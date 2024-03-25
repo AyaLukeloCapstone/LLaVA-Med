@@ -71,6 +71,8 @@ class LlavaLlamaModel(LlamaModel):
             return self.initialize_vision_modules_from_openai_clip(vision_tower, mm_vision_select_layer,
                                 pretrain_mm_mlp_adapter=None, tune_mm_mlp_adapter=False)
 
+            
+
 
 
     def initialize_vision_modules_from_openai_clip(self, vision_tower, mm_vision_select_layer,
@@ -160,18 +162,26 @@ class LlavaLlamaModel(LlamaModel):
     def extract_visual_features(self, vision_tower, images):
         select_hidden_state_layer = getattr(self.config, "mm_vision_select_layer", -1)
 
+
+        print(images.device)
+        print(images)
+        print (images.dtype)
         
         if "BiomedCLIP" in self.vision_tower_name  or "biomed_clip" in self.vision_tower_name:
+           
             image_forward_outs = vision_tower.get_intermediate_layers(images, n=3) # take last n blocks if n is an int, if in is a sequence, select by matching indices
             image_features = image_forward_outs[select_hidden_state_layer]
             image_features = image_features
             dummy_image_features = torch.zeros(196, 768, device=image_features.device, dtype=image_features.dtype)
         else:
+     
             image_forward_outs = vision_tower(images, output_hidden_states=True)
             select_hidden_state = image_forward_outs.hidden_states[select_hidden_state_layer]
             image_features = select_hidden_state[:, 1:]
             dummy_image_features = torch.zeros(256, 1024, device=image_features.device, dtype=image_features.dtype)
         
+
+
         return image_features, dummy_image_features
 
     def forward(

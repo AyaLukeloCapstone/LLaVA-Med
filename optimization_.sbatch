@@ -5,6 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=3
 #SBATCH --gres=gpu:a100:3
+#SBATCH -C 80g
 #SBATCH --time=2:59:59
 #SBATCH --mem=300GB
 #SBATCH -o job.%J.out
