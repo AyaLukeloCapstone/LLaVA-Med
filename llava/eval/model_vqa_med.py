@@ -114,6 +114,7 @@ def eval_model(args):
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     if args.mm_projector is None:
         patch_config(model_name)
+        print("Here now 0")
         
         print(model_name)
         if "BiomedCLIP" in model_name or "biomed_clip" in model_name:
@@ -127,6 +128,7 @@ def eval_model(args):
             vision_tower.to(device='cuda', dtype=torch.float16)
             setattr(vision_tower, 'config', vision_config)
         else:
+            print("Here now 1")
             model = LlavaLlamaForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, use_cache=True).cuda()
             image_processor = CLIPImageProcessor.from_pretrained(model.config.mm_vision_tower, torch_dtype=torch.float16)
             vision_tower = model.model.vision_tower[0]
@@ -147,6 +149,7 @@ def eval_model(args):
         image_token_len = (vision_config.image_size // vision_config.patch_size) ** 2
     else:
         # in case of using a pretrained model with only a MLP projector weights
+        print("Here 2:")
         model = LlavaLlamaForCausalLM.from_pretrained(model_name, torch_dtype=torch.float16, use_cache=True).cuda()
 
         mm_use_im_start_end = getattr(model.config, "mm_use_im_start_end", False)

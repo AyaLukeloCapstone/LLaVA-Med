@@ -1,12 +1,14 @@
 #!/bin/bash 
 
+#SBATCH -q ebrainccs 
 #SBATCH -p nvidia
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=2
-#SBATCH --gres=gpu:a100:2
-#SBATCH --time=5:59:59
+#SBATCH --cpus-per-task=4
+#SBATCH --gres=gpu:a100:4
+#SBATCH --time=35:59:59
 #SBATCH --mem=150GB
+#SBATCH -C 80g
 #SBATCH -o job.%J.out
 #SBATCH -e job.%J.err
 
@@ -39,7 +41,7 @@ torchrun --nnodes=1 --nproc_per_node=3 --master_port=25001 \
     --mm_use_im_start_end True \
     --tune_mm_mlp_adapter True \
     --bf16 True \
-    --output_dir /scratch/ltl2113/LLaVA-Med/checkpoints/llava-med-7b-pretrain-stage-2-02 \
+    --output_dir /scratch/ltl2113/LLaVA-Med/checkpoints/llava-med-7b-pretrain-SG1_Final \
     --num_train_epochs 1 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \

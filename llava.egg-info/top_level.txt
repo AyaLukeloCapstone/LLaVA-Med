@@ -1,7 +1,7 @@
-TinyLLaVABench
-bczhou
+TinyLLaVABench_KD
 checkpoints
 data
+demo_images
 images
 llava
 model

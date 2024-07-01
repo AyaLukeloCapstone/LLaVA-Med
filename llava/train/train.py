@@ -25,7 +25,6 @@ from typing import Dict, Optional, Sequence
 import torch
 
 import transformers
-import tokenizers
 from torch.utils.data import Dataset
 from llava.train.llava_trainer import LLaVATrainer
 
@@ -398,6 +397,10 @@ class LazySupervisedDataset(Dataset):
             image_token_len = self.multimodal_cfg["image_token_len"]
             patch_size = int(image.shape[1]//math.sqrt(image_token_len))
             cur_token_len = (image.shape[1]//patch_size) * (image.shape[2]//patch_size)   # FIXME: 14 is hardcoded patch size
+            #DEBUGGING 1:
+            print("Image token length: ",image_token_len)
+            print("Patch size: ",patch_size)
+            print("cur_token_len: ",cur_token_len)
 
             try:
                 sources = copy.deepcopy([e["conversations"] for e in sources])
@@ -481,292 +484,122 @@ def make_supervised_data_module(tokenizer: transformers.PreTrainedTokenizer,
                 eval_dataset=None,
                 data_collator=data_collator)
 
+
 def train():
-   ##STUDENT MODEL:
-   parser = transformers.HfArgumentParser(
-       (ModelArguments, DataArguments, TrainingArguments))
-   student_model_args, data_args, student_training_args = parser.parse_args_into_dataclasses()
+    parser = transformers.HfArgumentParser(
+        (ModelArguments, DataArguments, TrainingArguments))
+    model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-   if student_model_args.vision_tower is not None:
-       student_model = LlavaLlamaForCausalLM.from_pretrained(
-           student_model_args.model_name_or_path,
-           cache_dir=student_training_args.cache_dir,
-       )
+    if model_args.vision_tower is not None:
+        model = LlavaLlamaForCausalLM.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+        )
+    else:
+        model = transformers.LlamaForCausalLM.from_pretrained(
+            model_args.model_name_or_path,
+            cache_dir=training_args.cache_dir,
+        )
+    model.config.use_cache = False
 
-   else:
-       student_model = transformers.LlamaForCausalLM.from_pretrained(
-           student_model_args.model_name_or_path,
-           cache_dir=student_training_args.cache_dir,
-           
-           
-       )
+    if model_args.freeze_backbone:
+        model.model.requires_grad_(False)
 
-   student_device = student_model.device
-   student_model.config.use_cache = False
+    tokenizer = transformers.AutoTokenizer.from_pretrained(
+        model_args.model_name_or_path,
+        cache_dir=training_args.cache_dir,
+        model_max_length=training_args.model_max_length,
+        padding_side="right",
+        use_fast=False,
+    )
 
-   if student_model_args.freeze_backbone:
-       student_model.model.requires_grad_(False)
+    if model_args.version == "v0":
+        if tokenizer.pad_token is None:
+            smart_tokenizer_and_embedding_resize(
+                special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
+                tokenizer=tokenizer,
+                model=model,
+            )
+        if "llama" in model_args.model_name_or_path:
+            tokenizer.add_special_tokens({
+                "eos_token": DEFAULT_EOS_TOKEN,
+                "bos_token": DEFAULT_BOS_TOKEN,
+                "unk_token": DEFAULT_UNK_TOKEN,
+            })
+    else:
+        tokenizer.pad_token = tokenizer.unk_token
+        conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1_1"]
 
-   student_tokenizer = transformers.AutoTokenizer.from_pretrained(
-       student_model_args.model_name_or_path,
-       cache_dir=student_training_args.cache_dir,
-       model_max_length=student_training_args.model_max_length,
-       padding_side="right",
-       use_fast=False,
-   )
-#    Tokenizer, init_tokenizer = TokenizerSelect(model_args.model_name_or_path)()
-#    tokenizer = Tokenizer.from_pretrained(
-#         student_model_args.model_name_or_path,
-#         cache_dir=student_training_args.cache_dir,
-#         model_max_length=student_training_args.model_max_length,
-#         padding_side="right",
-#         use_fast=False,
-#     )
-#    student_tokenizer = init_tokenizer(tokenizer)
+    if model_args.vision_tower is not None:
+        model_vision_dict = model.model.initialize_vision_modules(
+            vision_tower=model_args.vision_tower,
+            mm_vision_select_layer=model_args.mm_vision_select_layer,
+            pretrain_mm_mlp_adapter=model_args.pretrain_mm_mlp_adapter
+        )
+        dtype = torch.float32
+        if training_args.fp16:
+            dtype = torch.float16
+        if training_args.bf16:
+            dtype = torch.bfloat16
+        model.model.vision_tower[0].to(dtype=dtype, device=training_args.device)
+        vision_config = model_vision_dict['vision_config']
 
-   if student_model_args.version == "v0":
-       if student_tokenizer.pad_token is None:
-           smart_tokenizer_and_embedding_resize(
-               special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
-               tokenizer=student_tokenizer,
-               model=student_model,
-           )
-       if "llama" in student_model_args.model_name_or_path:
-           student_tokenizer.add_special_tokens({
-               "eos_token": DEFAULT_EOS_TOKEN,
-               "bos_token": DEFAULT_BOS_TOKEN,
-               "unk_token": DEFAULT_UNK_TOKEN,
-           })
-   else:
-       student_tokenizer.pad_token = student_tokenizer.unk_token
-       conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1_1"]
+        data_args.image_token_len = model_vision_dict['image_token_len']
+        data_args.image_processor = model_vision_dict['image_processor']
+        data_args.is_multimodal = True
 
-   if student_model_args.vision_tower is not None:
-       model_vision_dict = student_model.model.initialize_vision_modules(
-           vision_tower=student_model_args.vision_tower,
-           mm_vision_select_layer=student_model_args.mm_vision_select_layer,
-           pretrain_mm_mlp_adapter=student_model_args.pretrain_mm_mlp_adapter
-       )
-       dtype = torch.float32
-       if student_training_args.fp16:
-           dtype = torch.float16
-       if student_training_args.bf16:
-           dtype = torch.bfloat16
-    #this line if not commented, is generating errors(it was there in original code)
-    #    student_model.model.vision_tower[0].to(dtype=dtype, device=student_model.device)
-       vision_config = model_vision_dict['vision_config']
+        model.config.tune_mm_mlp_adapter = training_args.tune_mm_mlp_adapter = model_args.tune_mm_mlp_adapter
+        if model_args.tune_mm_mlp_adapter:
+            # model.requires_grad_(False)
+            for p in model.parameters():
+                p.requires_grad = True 
+            for p in model.model.mm_projector.parameters():
+                p.requires_grad = True
 
+        model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
+        if training_args.freeze_mm_mlp_adapter:
+            for p in model.model.mm_projector.parameters():
+                p.requires_grad = False
 
-       data_args.image_token_len = model_vision_dict['image_token_len']
-       data_args.image_processor = model_vision_dict['image_processor']
-       data_args.is_multimodal = True
+        model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = model_args.mm_use_im_start_end
+        vision_config.use_im_start_end = training_args.use_im_start_end = model_args.mm_use_im_start_end
+        model.initialize_vision_tokenizer(mm_use_im_start_end=model_args.mm_use_im_start_end, tokenizer=tokenizer, device=training_args.device,
+                                          tune_mm_mlp_adapter=model_args.tune_mm_mlp_adapter, pretrain_mm_mlp_adapter=model_args.pretrain_mm_mlp_adapter)
 
+        params_no_grad = [n for n, p in model.named_parameters() if not p.requires_grad]
+        if len(params_no_grad) > 0:
+            if training_args.fsdp is not None and len(training_args.fsdp) > 0:
+                if len(params_no_grad) < 10:
+                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}'. format(len(params_no_grad), params_no_grad))
+                else:
+                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}...(omitted)'. format(len(params_no_grad), ', '.join(params_no_grad[:10])))
+                print("[WARNING] Attempting to use FSDP with partially frozen paramters, this is experimental.")
+                print("[WARNING] As of 4/30/23, this feature requires PyTorch-nightly build.  See here for details: https://github.com/haotian-liu/LLaVA#experimental-use-fsdp-to-save-memory-in-pretraining")
 
+                from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
+                def patch_FSDP_use_orig_params(func):
+                    def wrap_func(*args, **kwargs):
+                        use_orig_params = kwargs.pop('use_orig_params', True)
+                        return func(*args, **kwargs, use_orig_params=use_orig_params)
+                    return wrap_func
 
+                FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
 
-       student_model.config.tune_mm_mlp_adapter = student_training_args.tune_mm_mlp_adapter = student_model_args.tune_mm_mlp_adapter
-       if student_model_args.tune_mm_mlp_adapter:
-           student_model.requires_grad_(False)
-           for p in student_model.model.mm_projector.parameters():
-               p.requires_grad = True
+    data_module = make_supervised_data_module(tokenizer=tokenizer,
+                                              data_args=data_args)
+    trainer = LLaVATrainer(model=model,
+                    tokenizer=tokenizer,
+                    args=training_args,
+                    **data_module)
 
-       student_model.config.freeze_mm_mlp_adapter = student_training_args.freeze_mm_mlp_adapter
-       if student_training_args.freeze_mm_mlp_adapter:
-           for p in student_model.model.mm_projector.parameters():
-               p.requires_grad = False
-
-
-
-
-       student_model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = student_model_args.mm_use_im_start_end
-       vision_config.use_im_start_end = student_training_args.use_im_start_end = student_model_args.mm_use_im_start_end
-       student_model.initialize_vision_tokenizer(mm_use_im_start_end=student_model_args.mm_use_im_start_end, tokenizer=student_tokenizer, device=student_device,
-                                         tune_mm_mlp_adapter=student_model_args.tune_mm_mlp_adapter, pretrain_mm_mlp_adapter=student_model_args.pretrain_mm_mlp_adapter)
-
-
-       params_no_grad = [n for n, p in student_model.named_parameters() if not p.requires_grad]
-       if len(params_no_grad) > 0:
-           if student_training_args.fsdp is not None and len(student_training_args.fsdp) > 0:
-               if len(params_no_grad) < 10:
-                   print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}'. format(len(params_no_grad), params_no_grad))
-               else:
-                   print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}...(omitted)'. format(len(params_no_grad), ', '.join(params_no_grad[:10])))
-               print("[WARNING] Attempting to use FSDP with partially frozen paramters, this is experimental.")
-               print("[WARNING] As of 4/30/23, this feature requires PyTorch-nightly build.  See here for details: https://github.com/haotian-liu/LLaVA#experimental-use-fsdp-to-save-memory-in-pretraining")
-
-
-
-
-               from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
-               def patch_FSDP_use_orig_params(func):
-                   def wrap_func(*args, **kwargs):
-                       use_orig_params = kwargs.pop('use_orig_params', True)
-                       return func(*args, **kwargs, use_orig_params=use_orig_params)
-                   return wrap_func
-
-               FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
-
-
-
-
-   ##TEACHER MODEL LOADING:
-   ##create data arguments
-   teacher_model_args = ModelArguments(
-   model_name_or_path="/scratch/ltl2113/LLaVA-Med/checkpoints/llava-med-7b-pretrain",
-   version="v0",
-   freeze_backbone=True,
-   tune_mm_mlp_adapter=True,
-   vision_tower="openai/clip-vit-large-patch14",
-   mm_vision_select_layer=-2,
-   pretrain_mm_mlp_adapter=None,
-   mm_use_im_start_end=True)
-
-
-   teacher_training_args = TrainingArguments(
-       output_dir="/scratch/ltl2113/LLaVA-Med/checkpoints/llava-med-7b-teacher",
-       overwrite_output_dir=True,
-       model_max_length= 2048,
-       num_train_epochs=3,
-       per_device_train_batch_size=1,
-       per_device_eval_batch_size=2,
-       warmup_steps=500,
-       weight_decay=0.01,
-       logging_steps=1,)
-
-   if teacher_model_args.vision_tower is not None:
-       teacher_model = LlavaLlamaForCausalLM.from_pretrained(
-           teacher_model_args.model_name_or_path,
-           cache_dir=teacher_training_args.cache_dir,
-           device_map='auto'
-           
-       )
-   else:
-       teacher_model = transformers.LlamaForCausalLM.from_pretrained(
-           teacher_model_args.model_name_or_path,
-           cache_dir=teacher_training_args.cache_dir,
-           device_map='auto'
-                  
-       )
-   teacher_model.config.use_cache = False
-
-   if teacher_model_args.freeze_backbone:
-       teacher_model.model.requires_grad_(False)
-
-
-   teacher_tokenizer = transformers.AutoTokenizer.from_pretrained(
-       teacher_model_args.model_name_or_path,
-       cache_dir=teacher_training_args.cache_dir,
-       model_max_length=teacher_training_args.model_max_length,
-       padding_side="right",
-       use_fast=False,
-   )
-
-
-   if teacher_model_args.version == "v0":
-       if teacher_tokenizer.pad_token is None:
-           smart_tokenizer_and_embedding_resize(
-               special_tokens_dict=dict(pad_token=DEFAULT_PAD_TOKEN),
-               tokenizer=teacher_tokenizer,
-               model=teacher_model,
-           )
-       if "llama" in teacher_model_args.model_name_or_path:
-           teacher_tokenizer.add_special_tokens({
-               "eos_token": DEFAULT_EOS_TOKEN,
-               "bos_token": DEFAULT_BOS_TOKEN,
-               "unk_token": DEFAULT_UNK_TOKEN,
-           })
-   else:
-       teacher_tokenizer.pad_token = teacher_tokenizer.unk_token
-       conversation_lib.default_conversation = conversation_lib.conv_templates["vicuna_v1_1"]
-
-   if teacher_model_args.vision_tower is not None:
-       model_vision_dict = teacher_model.model.initialize_vision_modules(
-           vision_tower=teacher_model_args.vision_tower,
-           mm_vision_select_layer=teacher_model_args.mm_vision_select_layer,
-           pretrain_mm_mlp_adapter=teacher_model_args.pretrain_mm_mlp_adapter
-       )
-       dtype = torch.float32
-       if teacher_training_args.fp16:
-           dtype = torch.float16
-       if teacher_training_args.bf16:
-           dtype = torch.bfloat16
-
-
-       # teacher device
-       teacher_device = teacher_model.device
-   
-        #THIS LINE WAS IN ORIGINAL CODE BUT IN CURRENT COD, IF NOT COMMENTED, CREATES ERROR
-    #    teacher_model.model.vision_tower[0].to(dtype=dtype, device=teacher_device)
-       vision_config = model_vision_dict['vision_config']
-
-       teacher_model.config.tune_mm_mlp_adapter = teacher_training_args.tune_mm_mlp_adapter = teacher_model_args.tune_mm_mlp_adapter
-       if teacher_model_args.tune_mm_mlp_adapter:
-           teacher_model.requires_grad_(False)
-           for p in teacher_model.model.mm_projector.parameters():
-               p.requires_grad = True
-
-
-
-
-       teacher_model.config.freeze_mm_mlp_adapter = teacher_training_args.freeze_mm_mlp_adapter
-       if teacher_training_args.freeze_mm_mlp_adapter:
-           for p in model.model.mm_projector.parameters():
-               p.requires_grad = False
-
-
-
-
-       teacher_model.config.mm_use_im_start_end = data_args.mm_use_im_start_end = teacher_model_args.mm_use_im_start_end
-       vision_config.use_im_start_end = teacher_training_args.use_im_start_end = teacher_model_args.mm_use_im_start_end
-       teacher_model.initialize_vision_tokenizer(mm_use_im_start_end=teacher_model_args.mm_use_im_start_end, tokenizer=student_tokenizer, device=teacher_device,
-                                         tune_mm_mlp_adapter=teacher_model_args.tune_mm_mlp_adapter, pretrain_mm_mlp_adapter=teacher_model_args.pretrain_mm_mlp_adapter)
-
-#        params_no_grad = [n for n, p in teacher_model.named_parameters() if not p.requires_grad]
-#        if len(params_no_grad) > 0:
-#            if teacher_training_args.fsdp is not None and len(teacher_training_args.fsdp) > 0:
-#                if len(params_no_grad) < 10:
-#                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}'. format(len(params_no_grad), params_no_grad))
-#                else:
-#                    print('[WARNING] Attempting to use FSDP while {} parameters do not require gradients: {}...(omitted)'. format(len(params_no_grad), ', '.join(params_no_grad[:10])))
-#                print("[WARNING] Attempting to use FSDP with partially frozen paramters, this is experimental.")
-#                print("[WARNING] As of 4/30/23, this feature requires PyTorch-nightly build.  See here for details: https://github.com/haotian-liu/LLaVA#experimental-use-fsdp-to-save-memory-in-pretraining")
-
-#                from torch.distributed.fsdp.fully_sharded_data_parallel import FullyShardedDataParallel as FSDP
-#                def patch_FSDP_use_orig_params(func):
-#                    def wrap_func(*args, **kwargs):
-#                        use_orig_params = kwargs.pop('use_orig_params', True)
-#                        return func(*args, **kwargs, use_orig_params=use_orig_params)
-#                    return wrap_func
-
-#                FSDP.__init__ = patch_FSDP_use_orig_params(FSDP.__init__)
-
-
-   data_module = make_supervised_data_module(tokenizer=student_tokenizer,
-                                             data_args=data_args)
-   student_trainer = LLaVATrainer(model=student_model,
-                   tokenizer=student_tokenizer,
-                   teacher_model=teacher_model,
-                   args=student_training_args,
-                   **data_module)
-
-
-   if list(pathlib.Path(student_training_args.output_dir).glob("checkpoint-*")):
-       student_trainer.train(resume_from_checkpoint=False)
-   else:
-       student_trainer.train()
-   student_trainer.save_state()
-   safe_save_model_for_hf_trainer(trainer=student_trainer,
-                                  output_dir=student_training_args.output_dir)
-
+    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
+        trainer.train(resume_from_checkpoint=True)
+    else:
+        trainer.train()
+    trainer.save_state()
+    safe_save_model_for_hf_trainer(trainer=trainer,
+                                   output_dir=training_args.output_dir)
 
 
 if __name__ == "__main__":
-   train()
-
-
-
-
-
-
-
-
+    train()

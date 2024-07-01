@@ -7,8 +7,8 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --time=3:59:59
 #SBATCH --mem=150GB
-#SBATCH -o job.%J.out
-#SBATCH -e job.%J.err
+#SBATCH -o job_eval.%J.out
+#SBATCH -e job_eval.%J.err
 
 #SBATCH --job-name=Eval
 
@@ -17,7 +17,7 @@ module purge
 
 # Load Conda environment
 source ~/miniconda3/etc/profile.d/conda.sh
-conda activate llavamed
+conda activate llava-med
 
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
@@ -29,7 +29,7 @@ python3 llava/eval/model_vqa.py \
     --model-name checkpoints/llava-med-7b-pretrain \
     --question-file data/eval/llava_med_eval_qa50_qa.jsonl \
     --image-folder /scratch/ltl2113/LLaVA-Med/data/qa50_images \
-    --answers-file /scratch/ltl2113/LLaVA-Med/data/eval/answers_tiny_eval_qa50_qa_finetuned.jsonl
+    --answers-file /scratch/ltl2113/LLaVA-Med/data/eval/test_eval_qa50_qa_finetuned.jsonl
 
 # python3 llava/eval/eval_multimodal_chat_gpt_score.py \
 #     --question_input_path data/eval/llava_med_eval_qa50_qa.jsonl \

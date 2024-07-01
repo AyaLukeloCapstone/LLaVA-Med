@@ -89,7 +89,9 @@ class LlavaLlamaModel(LlamaModel):
 
         vision_config = vision_tower.config
         num_patches = (vision_config.image_size // vision_config.patch_size) ** 2
-
+        #DEBUGGING 1: 
+        # print("Vision config: ",vision_config)
+        # print("num_patches: ",num_patches)
         self.config.use_mm_proj = True
         self.config.mm_hidden_size = vision_config.hidden_size
         self.config.mm_vision_select_layer = mm_vision_select_layer
@@ -159,7 +161,7 @@ class LlavaLlamaModel(LlamaModel):
 
     def extract_visual_features(self, vision_tower, images):
         select_hidden_state_layer = getattr(self.config, "mm_vision_select_layer", -1)
-
+        # print("Image tensor size:", images.size())
         
         if "BiomedCLIP" in self.vision_tower_name  or "biomed_clip" in self.vision_tower_name:
             image_forward_outs = vision_tower.get_intermediate_layers(images, n=3) # take last n blocks if n is an int, if in is a sequence, select by matching indices
@@ -235,6 +237,9 @@ class LlavaLlamaModel(LlamaModel):
             new_input_embeds = []
             cur_image_idx = 0
             for cur_input_ids, cur_input_embeds in zip(input_ids, inputs_embeds):
+                # print(f"Size of image_features: {image_features.size()}")
+                # print(f"Current image index: {cur_image_idx}")
+
                 if (cur_input_ids == vision_tower.config.im_patch_token).sum() == 0:
                     # multimodal LLM, but the current sample is not multimodal
                     cur_input_embeds = cur_input_embeds + (0. * dummy_image_features).sum()

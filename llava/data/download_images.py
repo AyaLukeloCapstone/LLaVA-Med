@@ -120,6 +120,7 @@
 #     main(args)
 
 
+##our modificication: download images properly:
 import os
 import json
 import shutil
@@ -149,18 +150,32 @@ with open(args.input_path) as f:
         except json.JSONDecodeError as e:
             print(f"Error decoding JSON on line {line_number}: {e}")
 
+#this function check first if the image exist, if not then it try to download it
 def download_func(idx):
     sample = input_data[idx]
+    dst = os.path.join(args.images_output_path, sample['pair_id']+'.jpg')
+    print("Start Downloading image: ",dst)
+
+    # Check if the image already exists
+    if os.path.exists(dst):
+        print(f"Image {dst} already exists. Skipping download and extraction.")
+        return
+
     try:
+        # Download the tar file
         urllib.request.urlretrieve(sample['pmc_tar_url'], os.path.join(args.pmc_output_path, os.path.basename(sample['pmc_tar_url'])))
         fname = os.path.join(args.pmc_output_path, os.path.basename(os.path.join(sample['pmc_tar_url'])))
-        
+
+        # Extract the tar file
         tar = tarfile.open(fname, "r:gz")
         tar.extractall(args.pmc_output_path)
         tar.close()
+
+        # Copy the specific image file
         src = os.path.join(args.pmc_output_path, sample['image_file_path'])
-        dst = os.path.join(args.images_output_path, sample['pair_id']+'.jpg')
         shutil.copyfile(src, dst)  
+
+        # Clean up if specified
         if args.remove_pmc:
             os.remove(fname)
             shutil.rmtree(os.path.join(args.pmc_output_path, str(os.path.basename(sample['pmc_tar_url']))).split('.tar.gz')[0]+'/')
